@@ -14,6 +14,8 @@ public class ERPController {
     @FXML
     private TextField nameField, priceField, costField, stockField;
     @FXML
+    private TextField productNameField; // nuevo campo para vender por nombre
+    @FXML
     private TextArea logArea;
     @FXML
     private Label statusLabel;
@@ -35,8 +37,9 @@ public class ERPController {
 
             Product p = new Product(productIdCounter++, name, price, cost, stock);
             inventory.add(p);
-            logArea.appendText("Producto agregado: " + p.getInfo() + "\n");
-            statusLabel.setText("Producto agregado");
+
+            logArea.appendText("Producto agregado:\n   " + p.getInfo() + "\n");
+            statusLabel.setText("Producto agregado con éxito");
         } catch (Exception e) {
             statusLabel.setText("Error al agregar producto");
         }
@@ -44,23 +47,48 @@ public class ERPController {
 
     @FXML
     protected void onCreateOrderClick() {
-        if (inventory.isEmpty()) {
-            statusLabel.setText("No hay productos en inventario");
+        String requestedName = productNameField.getText();
+        if (requestedName == null || requestedName.isBlank()) {
+            statusLabel.setText("Escribe el nombre del producto a vender");
             return;
         }
-        Order order = new Order(orderIdCounter++);
-        // Simulación: se agrega el primer producto
-        Product p = inventory.get(0);
-        if (p.getStock() > 0) {
-            p.updateStock(-1);
-            order.addProduct(p);
-            orders.add(order);
-            logArea.appendText("Orden creada con producto: " + p.getName() +
-                    " | Total: $" + order.calculateTotal() + "\n");
-            statusLabel.setText("Orden creada");
-        } else {
-            statusLabel.setText("Stock insuficiente de " + p.getName());
+
+        Product found = inventory.stream()
+                .filter(p -> p.getName().equalsIgnoreCase(requestedName))
+                .findFirst()
+                .orElse(null);
+
+        if (found == null) {
+            statusLabel.setText("Producto no encontrado en inventario");
+            return;
         }
+
+        if (found.getStock() <= 0) {
+            statusLabel.setText("No hay stock disponible de " + found.getName());
+            return;
+        }
+
+        // Crear orden con el producto encontrado
+        Order order = new Order(orderIdCounter++);
+        found.reduceStock(1);
+        order.addProduct(found);
+        orders.add(order);
+
+        logArea.appendText("🛒 Orden #" + orderIdCounter +
+                " creada con producto: " + found.getName() +
+                " | Total: $" + order.calculateTotal() +
+                " | Stock restante: " + found.getStock() + "\n");
+
+        statusLabel.setText("Orden creada con " + found.getName());
+    }
+
+    @FXML
+    protected void onShowInventoryClick() {
+        logArea.appendText("\nInventario actual:\n");
+        for (Product p : inventory) {
+            logArea.appendText("   - " + p.getInfo() + "\n");
+        }
+        statusLabel.setText("Inventario mostrado");
     }
 
     @FXML
@@ -69,10 +97,10 @@ public class ERPController {
         double profit = financeService.calculateProfit(orders);
         double losses = revenue - profit;
 
-        logArea.appendText("=== Reporte Financiero ===\n");
-        logArea.appendText("Ingresos: $" + revenue + "\n");
-        logArea.appendText("Ganancias: $" + profit + "\n");
-        logArea.appendText("Pérdidas: $" + losses + "\n\n");
+        logArea.appendText("\nReporte Financiero:\n");
+        logArea.appendText("   Ingresos totales: $" + revenue + "\n");
+        logArea.appendText("   Ganancias netas: $" + profit + "\n");
+        logArea.appendText("   Pérdidas (costos): $" + losses + "\n\n");
 
         statusLabel.setText("Reporte generado");
     }
